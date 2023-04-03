@@ -1,0 +1,209 @@
+{
+	"info": {
+		"_postman_id": "97bbb4fc-8a4e-4f1a-9e01-77b3cf86dac3",
+		"name": "az_get_sub_resource_details",
+		"description": "## Get subscription Resource Details\n\nThis collections lets you use the Azure Rest API to pull details about all the resources in a subscription.\n\nYou need to create a Service Principal to authenticate the requests, log into the cloud powershell in the azure portal and run:\n\n``` powershell\n$subscription_id=$(Get-AzSubscription).id\naz ad sp create-for-rbac --name \"Postman\" --scopes \"/subscriptions/$subscription_id\" --role reader --sdk-auth\n\n```\n\nYou should get:\n\n``` json\n{\n  \"clientId\": \"66c8037f-7d78-4fce-ba46-1d2cfbf63ced\",\n  \"clientSecret\": \"0Ok8Q~ylQy5tfhMgAwQMpFixIv5fyGkwKMCOAc8T\",\n  \"subscriptionId\": \"e3f3c71a-d5bc-4f5a-a2c2-c9bec9b7d4e1\",\n  \"tenantId\": \"e3ea8c52-835b-4fde-9643-33dbb44c294c\",\n  \"activeDirectoryEndpointUrl\": \"https://login.microsoftonline.com\",\n  \"resourceManagerEndpointUrl\": \"https://management.azure.com/\",\n  \"activeDirectoryGraphResourceId\": \"https://graph.windows.net/\",\n  \"sqlManagementEndpointUrl\": \"https://management.core.windows.net:8443/\",\n  \"galleryEndpointUrl\": \"https://gallery.azure.com/\",\n  \"managementEndpointUrl\": \"https://management.core.windows.net/\"\n}\n\n```\n\nYou can then set the enviorment variables for clientId, clientSecret, subscriptionId and tenantId with these values.\n\nYou should be able to now run the Postman Collection. It stores the resource details to the env variable resourceDetails",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "15253307"
+	},
+	"item": [
+		{
+			"name": "Get-Token",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"let token = pm.response.json().access_token;\r",
+							"pm.environment.set(\"bearerToken\", token);"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": [
+						{
+							"key": "grant_type",
+							"value": "client_credentials",
+							"type": "text"
+						},
+						{
+							"key": "client_id",
+							"value": "{{clientID}}",
+							"type": "text"
+						},
+						{
+							"key": "client_secret",
+							"value": "{{clientSecret}}",
+							"type": "text"
+						},
+						{
+							"key": "resource",
+							"value": "https://management.azure.com/",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "https://login.microsoftonline.com/{{tenantID}}/oauth2/token",
+					"protocol": "https",
+					"host": [
+						"login",
+						"microsoftonline",
+						"com"
+					],
+					"path": [
+						"{{tenantID}}",
+						"oauth2",
+						"token"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "List-Resources",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"let response = pm.response.json().value;\r",
+							"let resourceNum = response.length\r",
+							"let resources = [];\r",
+							"\r",
+							"for (var i = 0; i < resourceNum; i++) {\r",
+							"    var item = response[i];\r",
+							"    param=item.id \r",
+							"    resources.push(param)\r",
+							"}\r",
+							"\r",
+							"let respourceID = resources[0];\r",
+							"\r",
+							"pm.environment.set(\"resourceID\", respourceID);\r",
+							"pm.environment.set(\"resources\", JSON.stringify(resources));\r",
+							"pm.environment.set(\"resourceIndex\", 0);\r",
+							"pm.environment.set(\"resourceDetails\", JSON.stringify([]));"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://management.azure.com/subscriptions/{{subsciptionID}}/resources?api-version=2021-04-01",
+					"protocol": "https",
+					"host": [
+						"management",
+						"azure",
+						"com"
+					],
+					"path": [
+						"subscriptions",
+						"{{subsciptionID}}",
+						"resources"
+					],
+					"query": [
+						{
+							"key": "api-version",
+							"value": "2021-04-01"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get-Resource",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"let response = pm.response.json();\r",
+							"let resources = JSON.parse(pm.environment.get(\"resources\"));\r",
+							"let index = parseInt(pm.environment.get(\"resourceIndex\"));\r",
+							"let resourceDetails = JSON.parse(pm.environment.get(\"resourceDetails\"));\r",
+							"\r",
+							"resourceDetails.push(response);\r",
+							"pm.environment.set(\"resourceDetails\", JSON.stringify(resourceDetails));\r",
+							"\r",
+							"let newIndex = index + 1\r",
+							"\r",
+							"if (resources.length > newIndex ) {\r",
+							"    pm.environment.set(\"resourceIndex\", newIndex);\r",
+							"    pm.environment.set(\"resourceID\", resources[newIndex]);\r",
+							"    postman.setNextRequest(\"Get-Resource\");\r",
+							"}\r",
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://management.azure.com/{{resourceID}}?api-version=2021-08-01",
+					"protocol": "https",
+					"host": [
+						"management",
+						"azure",
+						"com"
+					],
+					"path": [
+						"{{resourceID}}"
+					],
+					"query": [
+						{
+							"key": "api-version",
+							"value": "2021-08-01"
+						}
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{bearerToken}}",
+				"type": "string"
+			}
+		]
+	},
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	]
+}
